@@ -75,6 +75,19 @@ public class ProductoInventario {
     stock -= cantidad;
   }
 
+  /**
+   * Incrementa el stock con unidades devueltas (por ejemplo, por la anulación de un pedido).
+   *
+   * @param cantidad unidades devueltas; debe ser mayor que cero
+   * @throws IllegalArgumentException si la cantidad es menor o igual a cero
+   */
+  public void devolverStock(int cantidad) {
+    if (cantidad <= 0) {
+      throw new IllegalArgumentException("La cantidad debe ser mayor que cero.");
+    }
+    stock = Math.addExact(stock, cantidad);
+  }
+
   public Long getId() {
     return id;
   }

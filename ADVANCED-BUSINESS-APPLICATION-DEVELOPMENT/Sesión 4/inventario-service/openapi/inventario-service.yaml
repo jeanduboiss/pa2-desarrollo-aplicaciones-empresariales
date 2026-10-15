@@ -58,6 +58,30 @@ paths:
         '400': { description: Datos inválidos }
         '404': { description: Producto no encontrado }
         '409': { description: Stock insuficiente o conflicto de concurrencia }
+  /inventario/productos/codigo/{codigo}/devoluciones:
+    post:
+      summary: Devuelve stock al inventario (inversa de la reserva; PA2)
+      parameters:
+        - in: path
+          name: codigo
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevolucionStockRequest'
+      responses:
+        '200':
+          description: Stock devuelto correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevolucionStockResponse'
+        '400': { description: Cantidad inválida (cero, negativa o ausente) }
+        '404': { description: Código de producto inexistente }
+        '409': { description: Conflicto de concurrencia (@Version) }
 components:
   schemas:
     ProductoResponse:
@@ -84,5 +108,19 @@ components:
         nombre: { type: string }
         precio: { type: number, format: double }
         cantidadReservada: { type: integer }
+        stockRestante: { type: integer }
+        version: { type: integer, format: int64 }
+    DevolucionStockRequest:
+      type: object
+      required: [cantidad]
+      properties:
+        cantidad:
+          type: integer
+          minimum: 1
+    DevolucionStockResponse:
+      type: object
+      properties:
+        codigo: { type: string }
+        cantidadDevuelta: { type: integer }
         stockRestante: { type: integer }
         version: { type: integer, format: int64 }

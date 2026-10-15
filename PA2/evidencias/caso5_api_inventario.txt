@@ -1,0 +1,22 @@
+### Stock inicial LAP-001
+HTTP/1.1 200 OK
+{"codigo":"LAP-001","disponible":true,"productoId":1,"stock":10}
+### POST devoluciones {cantidad:2} (válida)
+HTTP/1.1 200 OK
+{"cantidadDevuelta":2,"codigo":"LAP-001","stockRestante":12,"version":1}
+### Stock tras devolución
+{"codigo":"LAP-001","disponible":true,"productoId":1,"stock":12}
+### cantidad 0
+HTTP/1.1 400 Bad Request
+{"error":"Bad Request","message":"La cantidad debe ser mayor que cero.","path":"/inventario/productos/codigo/LAP-001/devoluciones","status":400,"timestamp":"2026-10-15T15:30:49.782198-05:00"}
+### cantidad -5
+HTTP/1.1 400 Bad Request
+{"error":"Bad Request","message":"La cantidad debe ser mayor que cero.","path":"/inventario/productos/codigo/LAP-001/devoluciones","status":400,"timestamp":"2026-10-15T15:30:49.818939-05:00"}
+### cuerpo sin cantidad
+HTTP/1.1 400 Bad Request
+{"error":"Bad Request","message":"La cantidad es obligatoria.","path":"/inventario/productos/codigo/LAP-001/devoluciones","status":400,"timestamp":"2026-10-15T15:30:49.847303-05:00"}
+### código inexistente
+HTTP/1.1 404 Not Found
+{"error":"Not Found","message":"No existe un producto de inventario con código NO-EXISTE.","path":"/inventario/productos/codigo/NO-EXISTE/devoluciones","status":404,"timestamp":"2026-10-15T15:30:49.909256-05:00"}
+### Stock final (debe ser 12: 10 + 2 válida)
+{"codigo":"LAP-001","disponible":true,"productoId":1,"stock":12}

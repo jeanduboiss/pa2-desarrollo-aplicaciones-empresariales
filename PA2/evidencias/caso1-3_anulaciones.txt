@@ -1,0 +1,36 @@
+=== CASO 1: Anulación correcta ===
+  Stock Inventario (SQL Server): 10
+> POST /pedidos (registrar pedido, 2 unidades LAP-001)
+  HTTP 302 -> http://localhost:8081/sistema-pedidos/pedidos?creado=1
+  Stock Inventario (SQL Server): 8
+  Pedidos en H2:
+   id=1 cliente=Ana LAP-001 x2 estado=REGISTRADO
+> POST /api/v1/anulaciones {pedidoId:1, motivo:Solicitud del cliente}
+{"id":1,"pedidoId":1,"productoCodigo":"LAP-001","cantidadDevuelta":2,"fecha":"2026-10-15T15:31:59.772719","motivo":"Solicitud del cliente"}
+  HTTP 201
+  Stock Inventario (SQL Server): 10
+  Pedidos en H2:
+   id=1 cliente=Ana LAP-001 x2 estado=ANULADO
+> GET /api/v1/anulaciones
+[{"id":1,"pedidoId":1,"productoCodigo":"LAP-001","cantidadDevuelta":2,"fecha":"2026-10-15T15:31:59.772719","motivo":"Solicitud del cliente"}]
+  HTTP 200
+
+=== CASO 2: Anulación duplicada ===
+> POST /api/v1/anulaciones {pedidoId:1} (segunda vez)
+{"status":409,"error":"Conflict","message":"El pedido 1 ya fue anulado.","timestamp":"2026-10-15T15:31:59.989631-05:00"}
+  HTTP 409
+  Stock Inventario (SQL Server): 10
+> GET /api/v1/anulaciones (sigue 1 registro)
+  registros: 1
+
+=== CASO 3: Pedido inexistente ===
+> POST /api/v1/anulaciones {pedidoId:999}
+{"status":404,"error":"Not Found","message":"No existe un pedido con id 999.","timestamp":"2026-10-15T15:32:00.197505-05:00"}
+  HTTP 404
+  Stock Inventario (SQL Server): 10
+  registros de anulación: 1
+> Validaciones extra: sin pedidoId / JSON inválido
+{"status":400,"error":"Bad Request","message":"El pedidoId es obligatorio.","timestamp":"2026-10-15T15:32:00.415986-05:00"}
+  HTTP 400
+{"status":400,"error":"Bad Request","message":"El cuerpo JSON de la solicitud es inválido.","timestamp":"2026-10-15T15:32:00.430406-05:00"}
+  HTTP 400

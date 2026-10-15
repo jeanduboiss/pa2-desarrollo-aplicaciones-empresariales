@@ -2,6 +2,8 @@ package com.isil.edu.pe.spedidos.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -40,6 +42,10 @@ public class Pedido {
 
   @Column(nullable = false)
   private LocalDateTime fecha;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private PedidoEstado estado = PedidoEstado.REGISTRADO;
 
   public Pedido() {
   }
@@ -129,5 +135,20 @@ public class Pedido {
 
   public void setFecha(LocalDateTime fecha) {
     this.fecha = fecha;
+  }
+
+  public PedidoEstado getEstado() {
+    return estado;
+  }
+
+  public void setEstado(PedidoEstado estado) {
+    this.estado = estado;
+  }
+
+  /**
+   * Marca el pedido como anulado. No elimina el registro.
+   */
+  public void anular() {
+    this.estado = PedidoEstado.ANULADO;
   }
 }

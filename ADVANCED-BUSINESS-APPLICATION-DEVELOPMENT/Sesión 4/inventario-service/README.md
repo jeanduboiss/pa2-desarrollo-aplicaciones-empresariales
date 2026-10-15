@@ -88,3 +88,71 @@ También existen endpoints por `codigo` (`LAP-001`, `MON-001`, `TEC-001`) para m
 ## Nota académica de seguridad
 
 `@DataSourceDefinition` contiene usuario/contraseña para reducir pasos durante el laboratorio. En producción las credenciales no deben almacenarse en código; deben externalizarse en un DataSource administrado por WildFly, Credential Store o un mecanismo de secretos. `trustServerCertificate=true` también se usa solo para el laboratorio local.
+
+---
+
+## PA2 — API de devolución de stock
+
+Ampliación para la Práctica de Aprendizaje 2: devolución de stock, usada por `sistema-pedidos-springboot` para anular pedidos.
+
+### Endpoint nuevo
+
+| Método | Ruta | Respuestas |
+|--------|------|-----------|
+| `POST` | `/inventario-service/api/inventario/productos/codigo/{codigo}/devoluciones` | `200` ok · `400` cantidad ≤ 0 o ausente · `404` código inexistente · `409` conflicto de `@Version` |
+
+Solicitud:
+
+```json
+{ "cantidad": 2 }
+```
+
+Respuesta `200`:
+
+```json
+{ "codigo": "LAP-001", "cantidadDevuelta": 2, "stockRestante": 10, "version": 3 }
+```
+
+Ejemplo ejecutable (con WildFly en el puerto 8082):
+
+```bash
+curl -i -X POST http://localhost:8082/inventario-service/api/inventario/productos/codigo/LAP-001/devoluciones \
+  -H 'Content-Type: application/json' -d '{"cantidad":2}'
+```
+
+También en `requests/inventario-service.http` (casos válido, cero, negativo y código inexistente).
+
+### Capas implicadas
+
+```text
+ProductoResource.devolverPorCodigo
+   -> InventarioService.devolverStockPorCodigo   (@Stateless, @TransactionAttribute(REQUIRED))
+      -> ProductoInventario.devolverStock(int)    (regla de dominio)
+         -> JPA / @Version -> SQL Server
+```
+
+- DTO propios: `DevolucionStockRequest` y `DevolucionStockResponse` (no se reutiliza `ReservaStockRequest` para que el contrato de devoluciones evolucione solo).
+- Validación en dos niveles: Bean Validation en el DTO (`@NotNull @Positive`) y regla de dominio en `devolverStock`.
+- Incremento dentro de una transacción local de Inventario; `flush()` traduce un `OptimisticLockException` a `409`.
+
+### Pruebas unitarias nuevas (PA2)
+
+Clase `src/test/java/pe/edu/isil/inventario/domain/ProductoInventarioDevolucionTest.java`:
+
+| Prueba | Verifica |
+|--------|----------|
+| `devolucionValidaIncrementaElStockExactamenteEnLaCantidadDevuelta` | 8 + 2 = 10 |
+| `devolucionConCantidadCeroONegativaSeRechazaYNoCambiaElStock` | 0 y -3 lanzan `IllegalArgumentException`; el stock sigue en 8 |
+| `reservarYLuegoDevolverMismaCantidadRestauraElStockInicial` | prueba adicional: reservar 2 y devolver 2 restaura 10 |
+
+```bash
+mvn test        # no requiere WildFly ni SQL Server
+```
+
+### Orden de arranque y limitaciones
+
+Orden recomendado: SQL Server → WildFly (`mvn clean wildfly:run`) → `sistema-pedidos-springboot`.
+
+- La devolución no es idempotente: repetir la misma solicitud suma otra vez el stock. La protección contra duplicados vive en `sistema-pedidos-springboot` (estado + `UNIQUE`).
+- No hay un tope máximo de stock; solo se valida que la cantidad sea positiva y que el total no desborde `int`.
+- Configuración sin secretos reales: `config/database.properties` contiene credenciales de laboratorio; en otro entorno sustitúyalas por variables o un archivo no versionado.

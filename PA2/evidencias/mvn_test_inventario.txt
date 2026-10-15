@@ -1,0 +1,7 @@
+[INFO] Building inventario-service 1.0.0-SNAPSHOT
+[INFO] Running pe.edu.isil.inventario.domain.ProductoInventarioTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.070 s -- in pe.edu.isil.inventario.domain.ProductoInventarioTest
+[INFO] Running pe.edu.isil.inventario.domain.ProductoInventarioDevolucionTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in pe.edu.isil.inventario.domain.ProductoInventarioDevolucionTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS

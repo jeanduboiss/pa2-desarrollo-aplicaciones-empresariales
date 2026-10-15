@@ -1,0 +1,59 @@
+@pedidos = http://localhost:8081/sistema-pedidos
+@inventario = http://localhost:8082/inventario-service/api/inventario
+
+### Caso 1 - Stock antes
+GET {{inventario}}/productos/codigo/LAP-001/stock
+
+### Caso 1 - Registrar pedido (formulario, 2 unidades) -> 302
+POST {{pedidos}}/pedidos
+Content-Type: application/x-www-form-urlencoded
+
+cliente=Ana&productoCodigo=LAP-001&cantidad=2
+
+### Listar pedidos con su estado
+GET {{pedidos}}/api/v1/orders
+
+### Caso 1 - Anular pedido -> 201
+POST {{pedidos}}/api/v1/anulaciones
+Content-Type: application/json
+
+{ "pedidoId": 1, "motivo": "Solicitud del cliente" }
+
+### Caso 2 - Anulación duplicada -> 409
+POST {{pedidos}}/api/v1/anulaciones
+Content-Type: application/json
+
+{ "pedidoId": 1 }
+
+### Caso 3 - Pedido inexistente -> 404
+POST {{pedidos}}/api/v1/anulaciones
+Content-Type: application/json
+
+{ "pedidoId": 999 }
+
+### Caso 4 - Con inventario-service detenido -> 503 y el pedido sigue REGISTRADO
+POST {{pedidos}}/api/v1/anulaciones
+Content-Type: application/json
+
+{ "pedidoId": 2, "motivo": "Prueba sin inventario" }
+
+### Validación - sin pedidoId -> 400
+POST {{pedidos}}/api/v1/anulaciones
+Content-Type: application/json
+
+{ }
+
+### Consultar anulaciones registradas
+GET {{pedidos}}/api/v1/anulaciones
+
+### Caso 5 - API nueva de Inventario (válida / inválida)
+POST {{inventario}}/productos/codigo/LAP-001/devoluciones
+Content-Type: application/json
+
+{ "cantidad": 2 }
+
+###
+POST {{inventario}}/productos/codigo/LAP-001/devoluciones
+Content-Type: application/json
+
+{ "cantidad": 0 }

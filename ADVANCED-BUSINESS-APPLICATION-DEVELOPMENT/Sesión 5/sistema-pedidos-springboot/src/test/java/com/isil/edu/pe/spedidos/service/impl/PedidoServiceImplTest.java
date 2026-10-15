@@ -16,6 +16,7 @@ import com.isil.edu.pe.spedidos.client.dto.ReservaStockResponse;
 import com.isil.edu.pe.spedidos.entity.Pedido;
 import com.isil.edu.pe.spedidos.exception.PedidoException;
 import com.isil.edu.pe.spedidos.repository.PedidoRepository;
+import com.isil.edu.pe.spedidos.service.CompensacionStockService;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,8 @@ class PedidoServiceImplTest {
 
     pedidoService = new PedidoServiceImpl(
         pedidoRepository,
-        inventarioClient
+        inventarioClient,
+        mock(CompensacionStockService.class)
     );
   }
 
@@ -69,7 +71,7 @@ class PedidoServiceImplTest {
     when(inventarioClient.reservarStock("LAP-001", 2))
         .thenReturn(reserva);
 
-    when(pedidoRepository.save(any(Pedido.class)))
+    when(pedidoRepository.saveAndFlush(any(Pedido.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     Pedido pedido = pedidoService.registrarPedido(
@@ -84,7 +86,7 @@ class PedidoServiceImplTest {
     assertEquals(new BigDecimal("5000.00"), pedido.getTotal());
 
     verify(inventarioClient).reservarStock("LAP-001", 2);
-    verify(pedidoRepository).save(any(Pedido.class));
+    verify(pedidoRepository).saveAndFlush(any(Pedido.class));
   }
 
   /**

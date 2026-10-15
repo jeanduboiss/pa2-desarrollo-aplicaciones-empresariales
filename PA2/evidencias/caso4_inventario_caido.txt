@@ -1,0 +1,23 @@
+=== CASO 4: Inventario indisponible ===
+> Registrar pedido nuevo (HTTP 302)
+Stock en SQL Server (consola SQL):
+LAP-001 8 4
+
+(1 rows affected)
+Pedidos en H2:
+   id=2 LAP-001 x2 estado=REGISTRADO
+   id=1 LAP-001 x2 estado=ANULADO
+> Deteniendo inventario-service (WildFly)...
+  GET inventario -> HTTP 000 (000 = sin conexión)
+> POST /api/v1/anulaciones {pedidoId:2, motivo:Prueba sin inventario}
+{"status":503,"error":"Service Unavailable","message":"El servicio de inventario no se encuentra disponible o excedió el tiempo de espera.","timestamp":"2026-10-15T15:32:13.887691-05:00"}
+  HTTP 503
+Pedidos en H2 (debe seguir REGISTRADO):
+   id=2 LAP-001 x2 estado=REGISTRADO
+   id=1 LAP-001 x2 estado=ANULADO
+> GET /api/v1/anulaciones (solo la del caso 1)
+  registros: 1
+Stock en SQL Server (sin cambios, 8):
+LAP-001 8 4
+
+(1 rows affected)

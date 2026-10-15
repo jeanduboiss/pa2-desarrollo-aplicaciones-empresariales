@@ -1,0 +1,18 @@
+[INFO] Building sistema-pedidos-springboot 2.0.0-SNAPSHOT
+[INFO] Running com.isil.edu.pe.spedidos.integration.AnulacionPedidoIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.192 s -- in com.isil.edu.pe.spedidos.integration.AnulacionPedidoIntegrationTest
+[INFO] Running com.isil.edu.pe.spedidos.integration.CompensacionReservaIntegrationTest
+ANTES    -> Inventario stock=10 | H2 pedidos=0
+DESPUÉS  -> Inventario stock=10 | H2 pedidos=0 | llamadas=[RESERVAR LAP-001 2, DEVOLVER LAP-001 2]
+COMPENSACIÓN FALLIDA -> Inventario stock=8 | H2 pedidos=0 | incidentes=1
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.105 s -- in com.isil.edu.pe.spedidos.integration.CompensacionReservaIntegrationTest
+[INFO] Running com.isil.edu.pe.spedidos.SistemaPedidosSpringbootApplicationTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.565 s -- in com.isil.edu.pe.spedidos.SistemaPedidosSpringbootApplicationTests
+[INFO] Running com.isil.edu.pe.spedidos.service.impl.AnulacionPedidoServiceImplTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.427 s -- in com.isil.edu.pe.spedidos.service.impl.AnulacionPedidoServiceImplTest
+[INFO] Running com.isil.edu.pe.spedidos.service.impl.PedidoServiceImplTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.096 s -- in com.isil.edu.pe.spedidos.service.impl.PedidoServiceImplTest
+[INFO] Running com.isil.edu.pe.spedidos.service.impl.CompensacionStockServiceImplTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.069 s -- in com.isil.edu.pe.spedidos.service.impl.CompensacionStockServiceImplTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS

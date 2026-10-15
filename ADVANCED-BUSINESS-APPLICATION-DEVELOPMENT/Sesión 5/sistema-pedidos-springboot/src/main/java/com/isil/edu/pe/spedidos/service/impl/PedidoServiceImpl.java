@@ -8,6 +8,7 @@ import com.isil.edu.pe.spedidos.client.dto.ReservaStockResponse;
 import com.isil.edu.pe.spedidos.entity.Pedido;
 import com.isil.edu.pe.spedidos.exception.PedidoException;
 import com.isil.edu.pe.spedidos.repository.PedidoRepository;
+import com.isil.edu.pe.spedidos.service.CompensacionStockService;
 import com.isil.edu.pe.spedidos.service.PedidoService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -62,6 +63,7 @@ public class PedidoServiceImpl implements PedidoService {
 
   private final PedidoRepository pedidoRepository;
   private final InventarioClient inventarioClient;
+  private final CompensacionStockService compensacionStockService;
 
   /**
    * Construye el servicio utilizando las dependencias proporcionadas
@@ -83,10 +85,16 @@ public class PedidoServiceImpl implements PedidoService {
    *                         y consultar pedidos
    * @param inventarioClient cliente utilizado para comunicarse
    *                         con el servicio de Inventario
+   * @param compensacionStockService devuelve el stock reservado si la escritura
+   *                                 local falla después de una reserva confirmada
    */
-  public PedidoServiceImpl(PedidoRepository pedidoRepository, InventarioClient inventarioClient) {
+  public PedidoServiceImpl(
+      PedidoRepository pedidoRepository,
+      InventarioClient inventarioClient,
+      CompensacionStockService compensacionStockService) {
     this.pedidoRepository = pedidoRepository;
     this.inventarioClient = inventarioClient;
+    this.compensacionStockService = compensacionStockService;
   }
 
   /**
@@ -102,6 +110,7 @@ public class PedidoServiceImpl implements PedidoService {
    *   <li>Calcula el importe total.</li>
    *   <li>Construye la entidad {@link Pedido}.</li>
    *   <li>Persiste el pedido mediante {@link PedidoRepository}.</li>
+   *   <li>Si falla un paso local posterior a la reserva, compensa el stock.</li>
    * </ol>
    *
    * <p>{@link Transactional @Transactional} controla la transacción
@@ -149,14 +158,28 @@ public class PedidoServiceImpl implements PedidoService {
       throw new PedidoException(e.getMessage(), e);
     }
 
-    validarReserva(reserva);
+    /*
+     * Desde aquí Inventario ya descontó el stock. Cualquier fallo local antes del commit
+     * debe compensarse con la API de devolución, porque @Transactional solo revierte H2.
+     */
+    try {
+      validarReserva(reserva);
 
-    BigDecimal total = reserva.getPrecio().multiply(BigDecimal.valueOf(cantidad));
+      BigDecimal total = reserva.getPrecio().multiply(BigDecimal.valueOf(cantidad));
 
-    Pedido pedido = new Pedido(cliente.trim(), reserva.getCodigo(), reserva.getNombre(),
-            reserva.getPrecio(), cantidad, total);
+      Pedido pedido = new Pedido(cliente.trim(), reserva.getCodigo(), reserva.getNombre(),
+          reserva.getPrecio(), cantidad, total);
 
-    return pedidoRepository.save(pedido);
+      // saveAndFlush fuerza el INSERT aquí para detectar el fallo antes del commit.
+      return pedidoRepository.saveAndFlush(pedido);
+    } catch (RuntimeException e) {
+      compensacionStockService.compensarReserva(
+          productoCodigo.trim(),
+          cantidad,
+          e.getClass().getSimpleName() + ": " + e.getMessage()
+      );
+      throw e;
+    }
   }
 
   /**

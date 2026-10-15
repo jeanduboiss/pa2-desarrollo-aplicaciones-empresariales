@@ -55,6 +55,12 @@
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 
+		<!-- Validación de DTO (@Valid, @NotNull, @Size) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
 		<!-- ===================================== -->
 		<!-- 2. INTEGRACIÓN HTTP                   -->
 		<!-- Jakarta REST Client -> RestClient     -->

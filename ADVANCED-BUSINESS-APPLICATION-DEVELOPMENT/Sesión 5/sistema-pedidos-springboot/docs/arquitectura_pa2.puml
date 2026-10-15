@@ -1,0 +1,24 @@
+@startuml
+title PA2 - Flujo de anulación de pedidos
+skinparam componentStyle rectangle
+
+package "sistema-pedidos-springboot (:8081)" {
+  [AnulacionPedidoController] --> [AnulacionPedidoService]
+  [AnulacionPedidoService] --> [PedidoRepository]
+  [AnulacionPedidoService] --> [AnulacionPedidoRepository]
+  [AnulacionPedidoService] --> [DevolucionStockClient]
+  [DevolucionStockClient] <|.. [DevolucionStockRestClient]
+  database "H2" as H2
+  [PedidoRepository] --> H2
+  [AnulacionPedidoRepository] --> H2
+}
+
+package "inventario-service (WildFly :8082)" {
+  [ProductoResource] --> [InventarioService] : @EJB
+  [InventarioService] --> [ProductoInventario] : JPA / @Version
+  database "SQL Server" as SQL
+  [ProductoInventario] --> SQL
+}
+
+[DevolucionStockRestClient] --> [ProductoResource] : HTTP/JSON\nPOST /productos/codigo/{codigo}/devoluciones
+@enduml

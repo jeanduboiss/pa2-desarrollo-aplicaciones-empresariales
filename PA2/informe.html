@@ -1,0 +1,269 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>PA2</title>
+<style>
+@page { size: A4; margin: 18mm 18mm 18mm 18mm; }
+body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 10.5pt; line-height: 1.38; color:#111; }
+h1 { font-size: 15pt; margin: 14px 0 4px; color:#1f3a6b; border-bottom: 1.5px solid #1f3a6b; padding-bottom:2px; }
+h2 { font-size: 11.5pt; margin: 10px 0 3px; color:#1f3a6b; }
+p { margin: 4px 0; text-align: justify; }
+table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 9.2pt; }
+th, td { border: 1px solid #999; padding: 3px 5px; vertical-align: top; text-align:left; }
+th { background: #e8eef9; }
+code { font-family: Menlo, Consolas, monospace; font-size: 8.8pt; background:#f3f3f3; padding:0 2px; }
+pre { font-family: Menlo, Consolas, monospace; font-size: 7.4pt; background:#f6f6f6; border:1px solid #ccc; padding:6px; white-space: pre-wrap; word-break: break-word; line-height:1.25; }
+.cover { page-break-after: always; text-align:center; padding-top: 70mm; }
+.cover h1 { border:none; font-size: 22pt; }
+.cover p { text-align:center; font-size: 12pt; }
+.pb { page-break-before: always; }
+ul { margin: 3px 0 3px 18px; padding:0; }
+li { margin: 1px 0; }
+.fig { text-align:center; margin: 6px 0; }
+.fig small { display:block; color:#555; }
+</style></head><body>
+
+<div class="cover">
+  <p><b>ISIL</b></p>
+  <p>Curso: <b>Desarrollo de Aplicaciones Empresariales Avanzado</b></p>
+  <p>NRC: <b>[NRC]</b></p>
+  <h1>Proceso de Aprendizaje 2<br>API de devolución de stock y anulación trazable de pedidos</h1>
+  <p>Docente: <b>[NOMBRE DEL DOCENTE]</b></p>
+  <p>Estudiante: <b>[APELLIDOS Y NOMBRES]</b></p>
+  <p>Periodo de estudio: <b>2026-20</b></p>
+  <p>Repositorio: [URL DEL REPOSITORIO GIT]</p>
+</div>
+
+<h1>1. Objetivo</h1>
+<p>Ampliar la integración entre <code>inventario-service</code> (Jakarta EE, WildFly, SQL Server) y <code>sistema-pedidos-springboot</code> (Spring Boot, H2) con una API REST de devolución de stock, un cliente HTTP desacoplado y capas Controller, Service y Repository administradas por Spring. Se aplican HTTP/JSON y separación de responsabilidades (sesión 4) e IoC/DI con Constructor Injection (sesión 5) en una anulación de pedidos trazable que continúa el caso de PA1. Además se resolvió el reto de compensación.</p>
+
+<h1>2. Modificaciones por capa</h1>
+<table>
+<tr><th style="width:21%">Proyecto / capa</th><th>Cambio</th></tr>
+<tr><td>Inventario · dominio</td><td><code>ProductoInventario.devolverStock(int)</code>: rechaza cantidad ≤ 0 y suma al stock con <code>Math.addExact</code>.</td></tr>
+<tr><td>Inventario · servicio</td><td><code>InventarioService.devolverStockPorCodigo</code> (<code>@Stateless</code>, <code>REQUIRED</code>): valida, incrementa y hace <code>flush()</code> para traducir un conflicto de <code>@Version</code> a HTTP 409.</td></tr>
+<tr><td>Inventario · API</td><td><code>POST /api/inventario/productos/codigo/{codigo}/devoluciones</code> en <code>ProductoResource</code>. DTO <code>DevolucionStockRequest</code> (<code>@NotNull @Positive</code>) y <code>DevolucionStockResponse</code> (<code>codigo, cantidadDevuelta, stockRestante, version</code>). Se creó un DTO propio en lugar de reutilizar el de reserva para que ambos contratos evolucionen por separado. 200 / 400 / 404 / 409.</td></tr>
+<tr><td>Pedidos · cliente</td><td>Interfaz <code>DevolucionStockClient</code> e implementación <code>DevolucionStockRestClient</code> sobre el <code>RestClient</code> existente (bean <code>inventarioHttpClient</code>, con timeouts) y la URL <code>inventario.api.base-url</code> de <code>application.properties</code>. DTO <code>DevolucionStockRequest/Response</code>. 4xx/5xx → <code>InventarioClientException</code>; conexión o timeout → <code>InventarioNoDisponibleException</code>. Sin reintentos del POST.</td></tr>
+<tr><td>Pedidos · entidades</td><td><code>AnulacionPedido</code> (id, pedidoId, productoCodigo, cantidadDevuelta, fecha, motivo; <code>UNIQUE(pedido_id)</code>), enum <code>PedidoEstado</code> y <code>Pedido.estado</code> (inicial <code>REGISTRADO</code>). El pedido nunca se elimina.</td></tr>
+<tr><td>Pedidos · repositorio</td><td><code>AnulacionPedidoRepository extends JpaRepository&lt;AnulacionPedido, Long&gt;</code> con <code>findByPedidoId</code>, <code>existsByPedidoId</code> y <code>findAllByOrderByIdDesc</code>.</td></tr>
+<tr><td>Pedidos · servicio</td><td><code>AnulacionPedidoServiceImpl</code> (<code>@Transactional</code>): valida pedido y estado → llama al cliente → guarda la anulación → marca <code>ANULADO</code>. Constructor con <code>PedidoRepository</code>, <code>AnulacionPedidoRepository</code> y <code>DevolucionStockClient</code>.</td></tr>
+<tr><td>Pedidos · controlador</td><td><code>AnulacionPedidoController</code>: <code>POST /api/v1/anulaciones</code> (201) y <code>GET /api/v1/anulaciones</code>; DTO de entrada/salida, valida con <code>@Valid</code> y delega en el servicio. <code>AnulacionPedidoExceptionHandler</code> devuelve 400 / 404 / 409 / 502 / 503 en JSON.</td></tr>
+</table>
+
+<h1>3. Diagrama actualizado</h1>
+<div class="fig"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="100%" font-family="Helvetica, Arial, sans-serif" font-size="12">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#333"/></marker>
+  </defs>
+  <rect x="5" y="5" width="365" height="410" rx="8" fill="#eef5ff" stroke="#4a7bc8"/>
+  <text x="187" y="26" text-anchor="middle" font-weight="bold" fill="#2a4f94">sistema-pedidos-springboot (Spring Boot :8081)</text>
+  <rect x="390" y="5" width="365" height="410" rx="8" fill="#f1f8ee" stroke="#5a9a45"/>
+  <text x="572" y="26" text-anchor="middle" font-weight="bold" fill="#3b6b2a">inventario-service (Jakarta EE / WildFly :8082)</text>
+
+  <g fill="#fff" stroke="#4a7bc8">
+    <rect x="30" y="45" width="315" height="38" rx="5"/>
+    <rect x="30" y="108" width="315" height="38" rx="5"/>
+    <rect x="30" y="171" width="315" height="38" rx="5"/>
+    <rect x="30" y="262" width="315" height="38" rx="5"/>
+  </g>
+  <g text-anchor="middle" fill="#111">
+    <text x="187" y="68">AnulacionPedidoController (@RestController)</text>
+    <text x="187" y="131">AnulacionPedidoService / AnulacionPedidoServiceImpl</text>
+    <text x="187" y="194">DevolucionStockClient → DevolucionStockRestClient</text>
+    <text x="187" y="285">AnulacionPedidoRepository / PedidoRepository</text>
+  </g>
+  <rect x="115" y="335" width="145" height="60" rx="30" fill="#fff" stroke="#4a7bc8"/>
+  <text x="187" y="361" text-anchor="middle">H2 (en memoria)</text>
+  <text x="187" y="378" text-anchor="middle" font-size="10" fill="#555">pedido · anulacion_pedido</text>
+
+  <g fill="#fff" stroke="#5a9a45">
+    <rect x="415" y="171" width="315" height="38" rx="5"/>
+    <rect x="415" y="225" width="315" height="38" rx="5"/>
+    <rect x="415" y="279" width="315" height="38" rx="5"/>
+  </g>
+  <g text-anchor="middle" fill="#111">
+    <text x="572" y="194">ProductoResource (Jakarta REST)</text>
+    <text x="572" y="248">InventarioService (@Stateless, JTA)</text>
+    <text x="572" y="302">ProductoInventario (JPA, @Version)</text>
+  </g>
+  <rect x="500" y="345" width="145" height="55" rx="27" fill="#fff" stroke="#5a9a45"/>
+  <text x="572" y="368" text-anchor="middle">SQL Server</text>
+  <text x="572" y="384" text-anchor="middle" font-size="10" fill="#555">InventarioDB</text>
+
+  <g stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M187,83 L187,108"/>
+    <path d="M187,146 L187,171"/>
+    <path d="M345,190 L415,190"/>
+    <path d="M572,209 L572,225"/>
+    <path d="M572,263 L572,279"/>
+    <path d="M572,317 L572,345"/>
+    <path d="M60,146 C10,200 10,230 30,275"/>
+    <path d="M187,300 L187,335"/>
+  </g>
+  <text x="380" y="164" text-anchor="middle" font-size="11" font-weight="bold">HTTP / JSON</text>
+  <text x="380" y="222" text-anchor="middle" font-size="9" fill="#555">POST</text>
+  <text x="380" y="234" text-anchor="middle" font-size="9" fill="#555">…/devoluciones</text>
+</svg>
+<small>Figura 1. Flujo de anulación: Controller → Service → Client → HTTP/JSON → ProductoResource → InventarioService → SQL Server; Repository → H2.</small></div>
+
+<h1>4. Pruebas unitarias nuevas</h1>
+<table>
+<tr><th>Proyecto</th><th>Clase de test</th><th>Prueba</th><th>Resultado</th></tr>
+<tr><td>Inventario</td><td>ProductoInventarioDevolucionTest</td><td>Devolución válida (8 + 2 = 10)</td><td>OK</td></tr>
+<tr><td>Inventario</td><td>ProductoInventarioDevolucionTest</td><td>Devolución inválida (0 y −3 rechazadas, stock intacto)</td><td>OK</td></tr>
+<tr><td>Pedidos</td><td>AnulacionPedidoServiceImplTest</td><td>Anulación correcta: 1 devolución, estado ANULADO, registro guardado</td><td>OK</td></tr>
+<tr><td>Pedidos</td><td>AnulacionPedidoServiceImplTest</td><td>Anulación duplicada: <code>verify(never())</code> devolver y guardar</td><td>OK</td></tr>
+<tr><td>Pedidos</td><td>AnulacionPedidoServiceImplTest</td><td>Fallo de Inventario: no guarda anulación ni pedido; sigue REGISTRADO</td><td>OK</td></tr>
+</table>
+<p>Se añadieron además pruebas extra: una en Inventario (reservar y devolver restaura el stock), pedido inexistente, <code>CompensacionStockServiceImplTest</code> (2) y dos clases de integración con H2 real (<code>AnulacionPedidoIntegrationTest</code>, 4; <code>CompensacionReservaIntegrationTest</code>, 3). <code>mvn test</code> en la raíz de cada proyecto: Inventario <b>5/5</b> y Pedidos <b>18/18</b> en verde (Anexo B). Los tests con mocks validan la lógica del servicio; no demuestran por sí solos un rollback real, por eso se complementan con la integración y las pruebas funcionales.</p>
+
+<h1>5. Pruebas funcionales (stack real)</h1>
+<p>Entorno: SQL Server 2022 (Docker), WildFly 41 con <code>inventario-service</code>, Spring Boot en el puerto 8081. Stock inicial de LAP-001: 10. Salidas completas en el Anexo A.</p>
+<table>
+<tr><th style="width:17%">Caso</th><th>Solicitud / resultado</th><th style="width:25%">Stock y estado</th></tr>
+<tr><td>1. Anulación correcta</td><td>Pedido de 2 unidades → <code>POST /api/v1/anulaciones</code> <code>{"pedidoId":1,"motivo":"Solicitud del cliente"}</code> → <b>201</b> con <code>cantidadDevuelta: 2</code>.</td><td>Stock 10 → 8 (reserva) → <b>10</b>. Existe <code>AnulacionPedido</code>; pedido <b>ANULADO</b>.</td></tr>
+<tr><td>2. Anulación duplicada</td><td>Segundo POST del mismo pedido → <b>409</b> “El pedido 1 ya fue anulado.”</td><td>Stock sigue en 10; 1 solo registro.</td></tr>
+<tr><td>3. Pedido inexistente</td><td><code>pedidoId: 999</code> → <b>404</b>.</td><td>Stock sin cambios; sin nueva anulación.</td></tr>
+<tr><td>4. Inventario indisponible</td><td>WildFly detenido → <b>503</b> “…no se encuentra disponible o excedió el tiempo de espera.”</td><td>Pedido 2 sigue <b>REGISTRADO</b>; sin anulación; stock SQL Server 8 (sin cambios).</td></tr>
+<tr><td>5. Contrato de la nueva API</td><td><code>cantidad: 2</code> → <b>200</b> <code>{"cantidadDevuelta":2,"codigo":"LAP-001","stockRestante":12}</code>. Cantidad 0, −5 o ausente → <b>400</b>. Código inexistente → <b>404</b>.</td><td>El stock solo cambió con la solicitud válida (10 → 12).</td></tr>
+</table>
+
+<h1>6. Inyección de dependencias: @EJB frente a constructor</h1>
+<p>En WildFly, <code>ProductoResource</code> recibe <code>InventarioService</code> con <code>@EJB</code> sobre un campo privado: el contenedor Jakarta EE lo inyecta por reflexión después de construir el objeto. La clase no puede crearse con sus dependencias fuera del contenedor, y el campo no puede ser <code>final</code>. En Spring, las clases nuevas declaran sus dependencias en el constructor (<code>AnulacionPedidoServiceImpl</code> y <code>AnulacionPedidoController</code>); el campo es <code>final</code>, el objeto nace completo e inmutable y se puede instanciar en una prueba con mocks, sin contenedor. Esto permitió probar el servicio con Mockito sin levantar Spring ni Inventario. Además, el contenedor falla al arrancar si falta una dependencia, en vez de lanzar un <code>NullPointerException</code> en ejecución (Broadcom, s. f.; Eclipse Foundation, s. f.-a).</p>
+
+<h1>7. Frontera transaccional</h1>
+<p>La anotación <code>@Transactional</code> abre una transacción JDBC sobre H2: solo puede confirmar o revertir los cambios locales (estado del pedido y registro de anulación). La devolución a Inventario es otra transacción, en otra base de datos, dentro de otro proceso; Spring no puede revertirla porque ya se confirmó por HTTP. Por eso la llamada remota se hace <b>antes</b> de escribir en H2: si Inventario falla, no queda nada local por deshacer. El riesgo inverso (Inventario confirma y H2 falla) no se elimina; sería necesaria una transacción distribuida o un patrón saga (Garcia-Molina &amp; Salem, 1987; Richardson, 2018). Tampoco se reintenta un POST de devolución: no es idempotente y, si la primera respuesta se perdió, el reintento sumaría el stock dos veces.</p>
+
+<h1>8. Reto de compensación (+3)</h1>
+<p><code>PedidoServiceImpl.registrarPedido</code> reserva stock y luego intenta guardar el pedido. Si algo local falla antes del commit, <code>CompensacionStockService</code> llama a la API de devolución y la excepción se relanza para que H2 haga rollback. <b>Demostración automatizada</b> (<code>CompensacionReservaIntegrationTest</code>, H2 y transacciones reales): el INSERT falla de verdad (cliente de 200 caracteres sobre una columna de 120).</p>
+<table>
+<tr><th>Momento</th><th>Inventario (stock)</th><th>H2 (pedidos)</th></tr>
+<tr><td>Antes</td><td>10</td><td>0</td></tr>
+<tr><td>Tras la reserva confirmada</td><td>8</td><td>—</td></tr>
+<tr><td>Tras el fallo local y la compensación</td><td><b>10</b></td><td><b>0</b> (sin pedido confirmado)</td></tr>
+<tr><td>Si la compensación también falla</td><td>8</td><td>0, más 1 <code>IncidenteConciliacion</code> pendiente</td></tr>
+</table>
+<p>El incidente se guarda con <code>REQUIRES_NEW</code> para que sobreviva al rollback del pedido, y queda marcado para conciliación manual. No se compensa un <b>timeout</b> de la reserva: allí el resultado remoto es incierto (Inventario pudo haber descontado o no), y devolver sin saberlo podría dejar el stock inflado. La compensación solo se ejecuta cuando la reserva está confirmada. No hay endpoints ni controles inseguros: el fallo se provoca únicamente desde la prueba.</p>
+
+<h1>9. Conexión con PA1 y limitaciones</h1>
+<p><b>PA1, casos 2 y 3.</b> Ajustar la cantidad de un pedido exigiría reservar la diferencia (si sube) o devolverla (si baja); cambiar de producto exigiría devolver el producto anterior y reservar el nuevo. Son dos llamadas remotas coordinadas, con el mismo problema de falta de atomicidad entre sistemas, por lo que requerirían compensaciones o una saga. No se implementaron.</p>
+<ul>
+<li>Devolución remota y escritura local no forman una transacción distribuida: si Inventario confirma y H2 falla al anular, el stock queda devuelto y el pedido en REGISTRADO; reintentar duplicaría la devolución.</li>
+<li><code>UNIQUE</code> y el control de estado cubren el flujo secuencial evaluado; no garantizan idempotencia entre sistemas frente a solicitudes concurrentes.</li>
+<li>La compensación cubre fallos hasta el <code>flush</code>; un error exclusivo del commit no se intercepta dentro del método.</li>
+<li>Las pruebas funcionales se ejecutaron con <code>curl</code> y consola SQL; sin interfaz JSP nueva (no exigida).</li>
+</ul>
+
+<h1>Referencias</h1>
+<p style="text-align:left">Broadcom Inc. (s. f.). <i>Spring Framework reference documentation</i>. https://docs.spring.io/spring-framework/reference/</p>
+<p style="text-align:left">Eclipse Foundation. (s. f.-a). <i>Jakarta Enterprise Beans</i>. https://jakarta.ee/specifications/enterprise-beans/</p>
+<p style="text-align:left">Eclipse Foundation. (s. f.-b). <i>Jakarta RESTful Web Services</i>. https://jakarta.ee/specifications/restful-ws/</p>
+<p style="text-align:left">Garcia-Molina, H., &amp; Salem, K. (1987). Sagas. <i>ACM SIGMOD Record, 16</i>(3), 249-259. https://doi.org/10.1145/38713.38742</p>
+<p style="text-align:left">Richardson, C. (2018). <i>Microservices patterns: With examples in Java</i>. Manning Publications.</p>
+
+<h1 class="pb">Anexo A. Evidencias de los cinco escenarios</h1>
+<h2>Casos 1, 2 y 3</h2><pre>=== CASO 1: Anulación correcta ===
+  Stock Inventario (SQL Server): 10
+&gt; POST /pedidos (registrar pedido, 2 unidades LAP-001)
+  HTTP 302 -&gt; http://localhost:8081/sistema-pedidos/pedidos?creado=1
+  Stock Inventario (SQL Server): 8
+  Pedidos en H2:
+   id=1 cliente=Ana LAP-001 x2 estado=REGISTRADO
+&gt; POST /api/v1/anulaciones {pedidoId:1, motivo:Solicitud del cliente}
+{&quot;id&quot;:1,&quot;pedidoId&quot;:1,&quot;productoCodigo&quot;:&quot;LAP-001&quot;,&quot;cantidadDevuelta&quot;:2,&quot;fecha&quot;:&quot;2026-10-15T15:31:59.772719&quot;,&quot;motivo&quot;:&quot;Solicitud del cliente&quot;}
+  HTTP 201
+  Stock Inventario (SQL Server): 10
+  Pedidos en H2:
+   id=1 cliente=Ana LAP-001 x2 estado=ANULADO
+&gt; GET /api/v1/anulaciones
+[{&quot;id&quot;:1,&quot;pedidoId&quot;:1,&quot;productoCodigo&quot;:&quot;LAP-001&quot;,&quot;cantidadDevuelta&quot;:2,&quot;fecha&quot;:&quot;2026-10-15T15:31:59.772719&quot;,&quot;motivo&quot;:&quot;Solicitud del cliente&quot;}]
+  HTTP 200
+
+=== CASO 2: Anulación duplicada ===
+&gt; POST /api/v1/anulaciones {pedidoId:1} (segunda vez)
+{&quot;status&quot;:409,&quot;error&quot;:&quot;Conflict&quot;,&quot;message&quot;:&quot;El pedido 1 ya fue anulado.&quot;,&quot;timestamp&quot;:&quot;2026-10-15T15:31:59.989631-05:00&quot;}
+  HTTP 409
+  Stock Inventario (SQL Server): 10
+&gt; GET /api/v1/anulaciones (sigue 1 registro)
+  registros: 1
+
+=== CASO 3: Pedido inexistente ===
+&gt; POST /api/v1/anulaciones {pedidoId:999}
+{&quot;status&quot;:404,&quot;error&quot;:&quot;Not Found&quot;,&quot;message&quot;:&quot;No existe un pedido con id 999.&quot;,&quot;timestamp&quot;:&quot;2026-10-15T15:32:00.197505-05:00&quot;}
+  HTTP 404
+  Stock Inventario (SQL Server): 10
+  registros de anulación: 1
+&gt; Validaciones extra: sin pedidoId / JSON inválido
+{&quot;status&quot;:400,&quot;error&quot;:&quot;Bad Request&quot;,&quot;message&quot;:&quot;El pedidoId es obligatorio.&quot;,&quot;timestamp&quot;:&quot;2026-10-15T15:32:00.415986-05:00&quot;}
+  HTTP 400
+{&quot;status&quot;:400,&quot;error&quot;:&quot;Bad Request&quot;,&quot;message&quot;:&quot;El cuerpo JSON de la solicitud es inválido.&quot;,&quot;timestamp&quot;:&quot;2026-10-15T15:32:00.430406-05:00&quot;}
+  HTTP 400</pre>
+<h2>Caso 4</h2><pre>=== CASO 4: Inventario indisponible ===
+&gt; Registrar pedido nuevo (HTTP 302)
+Stock en SQL Server (consola SQL):
+LAP-001 8 4
+
+(1 rows affected)
+Pedidos en H2:
+   id=2 LAP-001 x2 estado=REGISTRADO
+   id=1 LAP-001 x2 estado=ANULADO
+&gt; Deteniendo inventario-service (WildFly)...
+  GET inventario -&gt; HTTP 000 (000 = sin conexión)
+&gt; POST /api/v1/anulaciones {pedidoId:2, motivo:Prueba sin inventario}
+{&quot;status&quot;:503,&quot;error&quot;:&quot;Service Unavailable&quot;,&quot;message&quot;:&quot;El servicio de inventario no se encuentra disponible o excedió el tiempo de espera.&quot;,&quot;timestamp&quot;:&quot;2026-10-15T15:32:13.887691-05:00&quot;}
+  HTTP 503
+Pedidos en H2 (debe seguir REGISTRADO):
+   id=2 LAP-001 x2 estado=REGISTRADO
+   id=1 LAP-001 x2 estado=ANULADO
+&gt; GET /api/v1/anulaciones (solo la del caso 1)
+  registros: 1
+Stock en SQL Server (sin cambios, 8):
+LAP-001 8 4
+
+(1 rows affected)</pre>
+<h2>Caso 5</h2><pre>### Stock inicial LAP-001
+HTTP/1.1 200 OK
+{&quot;codigo&quot;:&quot;LAP-001&quot;,&quot;disponible&quot;:true,&quot;productoId&quot;:1,&quot;stock&quot;:10}
+### POST devoluciones {cantidad:2} (válida)
+HTTP/1.1 200 OK
+{&quot;cantidadDevuelta&quot;:2,&quot;codigo&quot;:&quot;LAP-001&quot;,&quot;stockRestante&quot;:12,&quot;version&quot;:1}
+### Stock tras devolución
+{&quot;codigo&quot;:&quot;LAP-001&quot;,&quot;disponible&quot;:true,&quot;productoId&quot;:1,&quot;stock&quot;:12}
+### cantidad 0
+HTTP/1.1 400 Bad Request
+{&quot;error&quot;:&quot;Bad Request&quot;,&quot;message&quot;:&quot;La cantidad debe ser mayor que cero.&quot;,&quot;path&quot;:&quot;/inventario/productos/codigo/LAP-001/devoluciones&quot;,&quot;status&quot;:400,&quot;timestamp&quot;:&quot;2026-10-15T15:30:49.782198-05:00&quot;}
+### cantidad -5
+HTTP/1.1 400 Bad Request
+{&quot;error&quot;:&quot;Bad Request&quot;,&quot;message&quot;:&quot;La cantidad debe ser mayor que cero.&quot;,&quot;path&quot;:&quot;/inventario/productos/codigo/LAP-001/devoluciones&quot;,&quot;status&quot;:400,&quot;timestamp&quot;:&quot;2026-10-15T15:30:49.818939-05:00&quot;}
+### cuerpo sin cantidad
+HTTP/1.1 400 Bad Request
+{&quot;error&quot;:&quot;Bad Request&quot;,&quot;message&quot;:&quot;La cantidad es obligatoria.&quot;,&quot;path&quot;:&quot;/inventario/productos/codigo/LAP-001/devoluciones&quot;,&quot;status&quot;:400,&quot;timestamp&quot;:&quot;2026-10-15T15:30:49.847303-05:00&quot;}
+### código inexistente
+HTTP/1.1 404 Not Found
+{&quot;error&quot;:&quot;Not Found&quot;,&quot;message&quot;:&quot;No existe un producto de inventario con código NO-EXISTE.&quot;,&quot;path&quot;:&quot;/inventario/productos/codigo/NO-EXISTE/devoluciones&quot;,&quot;status&quot;:404,&quot;timestamp&quot;:&quot;2026-10-15T15:30:49.909256-05:00&quot;}
+### Stock final (debe ser 12: 10 + 2 válida)
+{&quot;codigo&quot;:&quot;LAP-001&quot;,&quot;disponible&quot;:true,&quot;productoId&quot;:1,&quot;stock&quot;:12}</pre>
+<h1 class="pb">Anexo B. Resultados de <code>mvn test</code></h1>
+<h2>inventario-service</h2><pre>[INFO] Building inventario-service 1.0.0-SNAPSHOT
+[INFO] Running pe.edu.isil.inventario.domain.ProductoInventarioTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.070 s -- in pe.edu.isil.inventario.domain.ProductoInventarioTest
+[INFO] Running pe.edu.isil.inventario.domain.ProductoInventarioDevolucionTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in pe.edu.isil.inventario.domain.ProductoInventarioDevolucionTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS</pre>
+<h2>sistema-pedidos-springboot</h2><pre>[INFO] Building sistema-pedidos-springboot 2.0.0-SNAPSHOT
+[INFO] Running com.isil.edu.pe.spedidos.integration.AnulacionPedidoIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.192 s -- in com.isil.edu.pe.spedidos.integration.AnulacionPedidoIntegrationTest
+[INFO] Running com.isil.edu.pe.spedidos.integration.CompensacionReservaIntegrationTest
+ANTES    -&gt; Inventario stock=10 | H2 pedidos=0
+DESPUÉS  -&gt; Inventario stock=10 | H2 pedidos=0 | llamadas=[RESERVAR LAP-001 2, DEVOLVER LAP-001 2]
+COMPENSACIÓN FALLIDA -&gt; Inventario stock=8 | H2 pedidos=0 | incidentes=1
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.105 s -- in com.isil.edu.pe.spedidos.integration.CompensacionReservaIntegrationTest
+[INFO] Running com.isil.edu.pe.spedidos.SistemaPedidosSpringbootApplicationTests
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.565 s -- in com.isil.edu.pe.spedidos.SistemaPedidosSpringbootApplicationTests
+[INFO] Running com.isil.edu.pe.spedidos.service.impl.AnulacionPedidoServiceImplTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.427 s -- in com.isil.edu.pe.spedidos.service.impl.AnulacionPedidoServiceImplTest
+[INFO] Running com.isil.edu.pe.spedidos.service.impl.PedidoServiceImplTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.096 s -- in com.isil.edu.pe.spedidos.service.impl.PedidoServiceImplTest
+[INFO] Running com.isil.edu.pe.spedidos.service.impl.CompensacionStockServiceImplTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.069 s -- in com.isil.edu.pe.spedidos.service.impl.CompensacionStockServiceImplTest
+[INFO] Tests run: 18, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS</pre>
+</body></html>

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="100%" font-family="Helvetica, Arial, sans-serif" font-size="12">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#333"/></marker>
+  </defs>
+  <rect x="5" y="5" width="365" height="410" rx="8" fill="#eef5ff" stroke="#4a7bc8"/>
+  <text x="187" y="26" text-anchor="middle" font-weight="bold" fill="#2a4f94">sistema-pedidos-springboot (Spring Boot :8081)</text>
+  <rect x="390" y="5" width="365" height="410" rx="8" fill="#f1f8ee" stroke="#5a9a45"/>
+  <text x="572" y="26" text-anchor="middle" font-weight="bold" fill="#3b6b2a">inventario-service (Jakarta EE / WildFly :8082)</text>
+
+  <g fill="#fff" stroke="#4a7bc8">
+    <rect x="30" y="45" width="315" height="38" rx="5"/>
+    <rect x="30" y="108" width="315" height="38" rx="5"/>
+    <rect x="30" y="171" width="315" height="38" rx="5"/>
+    <rect x="30" y="262" width="315" height="38" rx="5"/>
+  </g>
+  <g text-anchor="middle" fill="#111">
+    <text x="187" y="68">AnulacionPedidoController (@RestController)</text>
+    <text x="187" y="131">AnulacionPedidoService / AnulacionPedidoServiceImpl</text>
+    <text x="187" y="194">DevolucionStockClient → DevolucionStockRestClient</text>
+    <text x="187" y="285">AnulacionPedidoRepository / PedidoRepository</text>
+  </g>
+  <rect x="115" y="335" width="145" height="60" rx="30" fill="#fff" stroke="#4a7bc8"/>
+  <text x="187" y="361" text-anchor="middle">H2 (en memoria)</text>
+  <text x="187" y="378" text-anchor="middle" font-size="10" fill="#555">pedido · anulacion_pedido</text>
+
+  <g fill="#fff" stroke="#5a9a45">
+    <rect x="415" y="171" width="315" height="38" rx="5"/>
+    <rect x="415" y="225" width="315" height="38" rx="5"/>
+    <rect x="415" y="279" width="315" height="38" rx="5"/>
+  </g>
+  <g text-anchor="middle" fill="#111">
+    <text x="572" y="194">ProductoResource (Jakarta REST)</text>
+    <text x="572" y="248">InventarioService (@Stateless, JTA)</text>
+    <text x="572" y="302">ProductoInventario (JPA, @Version)</text>
+  </g>
+  <rect x="500" y="345" width="145" height="55" rx="27" fill="#fff" stroke="#5a9a45"/>
+  <text x="572" y="368" text-anchor="middle">SQL Server</text>
+  <text x="572" y="384" text-anchor="middle" font-size="10" fill="#555">InventarioDB</text>
+
+  <g stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M187,83 L187,108"/>
+    <path d="M187,146 L187,171"/>
+    <path d="M345,190 L415,190"/>
+    <path d="M572,209 L572,225"/>
+    <path d="M572,263 L572,279"/>
+    <path d="M572,317 L572,345"/>
+    <path d="M60,146 C10,200 10,230 30,275"/>
+    <path d="M187,300 L187,335"/>
+  </g>
+  <text x="380" y="164" text-anchor="middle" font-size="11" font-weight="bold">HTTP / JSON</text>
+  <text x="380" y="222" text-anchor="middle" font-size="9" fill="#555">POST</text>
+  <text x="380" y="234" text-anchor="middle" font-size="9" fill="#555">…/devoluciones</text>
+</svg>
